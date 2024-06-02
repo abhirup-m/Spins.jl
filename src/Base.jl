@@ -33,10 +33,6 @@ function applyOperatorOnState(stateDict::Dict{BitVector,Float64}, operatorList::
         @assert length(opMembers) == length(opType) == length(unique(opMembers))
 
         for (state, coefficient) in stateDict
-            # println(state[opMembers], state[opMembers] .== 0, opType)
-            # if '-' ∈ opType[state[opMembers] .== 0] || '+' ∈ opType[state[opMembers] .== 1]
-            #     continue
-            # end
 
             newState = copy(state)
             newCoefficient = coefficient
@@ -49,12 +45,10 @@ function applyOperatorOnState(stateDict::Dict{BitVector,Float64}, operatorList::
                 end
             end
 
-            if newCoefficient != 0
-                if newState in keys(completeOutputState)
-                    completeOutputState[newState] += opStrength * newCoefficient
-                else
-                    completeOutputState[newState] = opStrength * newCoefficient
-                end
+            if newState in keys(completeOutputState)
+                completeOutputState[newState] += opStrength * newCoefficient
+            else
+                completeOutputState[newState] = opStrength * newCoefficient
             end
         end
     end
@@ -63,7 +57,7 @@ end
 
 
 function generalOperatorMatrix(basisStates::Dict{Float64,Vector{BitArray}}, operatorList::Dict{Tuple{String,Vector{Int64}},Float64})
-    operatorFullMatrix = Dict(key => zeros(length(value), length(value)) for (key, value) in basisStates)
+    operatorFullMatrix = Dict(key => zeros(length(value), length(value)) .+ 0im for (key, value) in basisStates)
 
     # loop over each symmetry sector
     for (key, bstates) in collect(basisStates)
@@ -74,9 +68,18 @@ function generalOperatorMatrix(basisStates::Dict{Float64,Vector{BitArray}}, oper
             # loop over the new states generated upon applying
             # the operator to the current basis state
             for (nState, coeff) in applyOperatorOnState(Dict(state => 1.0), operatorList)
-                operatorFullMatrix[key][index, bstates.==[nState]] .= coeff
+                operatorFullMatrix[key][bstates.==[nState], index] .= coeff
             end
         end
     end
     return operatorFullMatrix
+end
+
+
+function operatorCommutator(basisStates::Dict{Float64,Vector{BitArray}}, matrixLeft::Dict{Float64, Matrix{ComplexF64}}, matrixRight::Dict{Float64, Matrix{ComplexF64}})
+    commutator = Dict(key=>Matrix{ComplexF64}(undef, (length(states), length(states))) for (key, states) in basisStates)
+    for sector in keys(basisStates)
+        commutator[sector] = matrixLeft[sector] * matrixRight[sector] - matrixRight[sector] * matrixLeft[sector]
+    end
+    return commutator
 end
