@@ -1,23 +1,26 @@
-using Spins, Plots, Measures
+using Spins, Plots, Measures, ProgressMeter
 
+timeMax = 20.0
+deltaTime = 0.1
 probe = Dict(("z", [1])=>1.0); 
 plots = []
-for numSites in 2:2:6 
-    basisStates = getBasisStates(numSites)
-    leftDownState = [fill(0, Int(numSites/2)); fill(1, Int(numSites/2))]
+numSitesSet = 2:2:12
+@showprogress for numSites in numSitesSet
+    basisStates = Spins.getBasisStates(numSites)
+    leftDownState = [fill(0, trunc(Int, numSites/2)); fill(1, numSites - trunc(Int, numSites/2))]
     rightDownState = reverse(leftDownState)
-    ham = Dict{Tuple{String, Vector{Int64}}, Float64}()
+    hamiltonian = Dict{Tuple{String, Vector{Int64}}, Float64}()
     for i in 1:numSites
-        ham[("+-", [i, i==numSites ? 1 : i+1])] = 0.5
-        ham[("+-", [i==numSites ? 1 : i+1, i])] = 0.5
-        ham[("zz", [i, i==numSites ? 1 : i+1])] = 0.25
+        hamiltonian[("+-", [i, i==numSites ? 1 : i+1])] = 0.5
+        hamiltonian[("+-", [i==numSites ? 1 : i+1, i])] = 0.5
+        hamiltonian[("zz", [i, i==numSites ? 1 : i+1])] = 0.25
     end
-    p = plot(thickness_scaling=1.1, linewidth=4, label="N=$numSites", size=(300, 150), xlabel="time", ylabel="local \$S_z\$", left_margin=-1mm, top_margin=-1mm, bottom_margin=0mm) 
-    for state in [initState, reverse(initState)]
-        mele = timeEvolvedMatrixElement(basisStates, Dict(BitVector(state) => 1.0), probe, ham, 30.0, 0.1)
-        plot!(p, mele)
+    p = plot(annotationfontsize=11, annotate=(timeMax * 0.9, 0.2, "N=$numSites")) 
+    for initState in [leftDownState, rightDownState]
+        mele = Spins.timeEvolvedMatrixElement(basisStates, Dict(BitVector(initState) => 1.0), probe, hamiltonian, timeMax, deltaTime)
+        plot!(p, range(0, stop=timeMax, step=deltaTime), mele, linewidth=4, label="", thickness_scaling=1.3, xlabel="time \$\\rightarrow\$", ylabel="local \$S_z\$")
     end
     push!(plots, p)
-    plot(plots...)
 end
-savefig("spinThermal.pdf")
+p = plot(plots..., size=(1100, 1500), layout=(length(numSitesSet), 1))
+savefig(p, "spinThermal.pdf")
