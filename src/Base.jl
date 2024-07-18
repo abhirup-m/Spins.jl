@@ -1,9 +1,13 @@
-function getBasisStates(numSpins::Int64)
-    basisStates = Dict{Float64, Vector{BitArray}}()
+function getBasisStates(numSpins::Int64; magz=nothing)
+    basisStates = Dict{Float64,Vector{BitArray}}()
     allSequences = digits.(0:2^numSpins-1, base=2, pad=numSpins) |> reverse
     allSequencesTotSigmaz = sum.([sequence .- 0.5 for sequence in allSequences]) .* 2
-    for sigmaz in -numSpins:2:numSpins
-        basisStates[sigmaz] = allSequences[allSequencesTotSigmaz .== sigmaz]
+    if !isnothing(magz)
+        basisStates[magz] = allSequences[allSequencesTotSigmaz.==magz]
+    else
+        for sigmaz in -numSpins:2:numSpins
+            basisStates[sigmaz] = allSequences[allSequencesTotSigmaz.==sigmaz]
+        end
     end
     return basisStates
 end
@@ -76,8 +80,8 @@ function generalOperatorMatrix(basisStates::Dict{Float64,Vector{BitArray}}, oper
 end
 
 
-function operatorCommutator(basisStates::Dict{Float64,Vector{BitArray}}, matrixLeft::Dict{Float64, Matrix{ComplexF64}}, matrixRight::Dict{Float64, Matrix{ComplexF64}})
-    commutator = Dict(key=>Matrix{ComplexF64}(undef, (length(states), length(states))) for (key, states) in basisStates)
+function operatorCommutator(basisStates::Dict{Float64,Vector{BitArray}}, matrixLeft::Dict{Float64,Matrix{ComplexF64}}, matrixRight::Dict{Float64,Matrix{ComplexF64}})
+    commutator = Dict(key => Matrix{ComplexF64}(undef, (length(states), length(states))) for (key, states) in basisStates)
     for sector in keys(basisStates)
         commutator[sector] = matrixLeft[sector] * matrixRight[sector] - matrixRight[sector] * matrixLeft[sector]
     end

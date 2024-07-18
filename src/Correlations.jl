@@ -1,6 +1,6 @@
 using LinearAlgebra
 
-function timeEvolvedMatrixElement(basisStates::Dict{Float64,Vector{BitArray}}, observeState::Dict{BitVector, Float64}, operator::Dict{Tuple{String,Vector{Int64}},Float64}, hamiltonian::Dict{Tuple{String,Vector{Int64}},Float64}, timeMax::Float64, deltaTime::Float64)
+function timeEvolvedMatrixElement(basisStates::Dict{Float64,Vector{BitArray}}, observeState::Dict{BitVector,Float64}, operator::Dict{Tuple{String,Vector{Int64}},Float64}, hamiltonian::Dict{Tuple{String,Vector{Int64}},Float64}, timeMax::Float64, deltaTime::Float64)
     hamiltonianMatrix = generalOperatorMatrix(basisStates, hamiltonian)
     propagatorSectors = Dict(sector => (I + (hamiltonianMatrix[sector] .* 1im .* deltaTime ./ 2)) / (I - (hamiltonianMatrix[sector] .* 1im .* deltaTime ./ 2)) for (sector, matrix) in hamiltonianMatrix)
     matrixElement = Float64[]
@@ -11,17 +11,11 @@ function timeEvolvedMatrixElement(basisStates::Dict{Float64,Vector{BitArray}}, o
         observeStateClassified[sector] = weights
     end
     operatorMatrix = generalOperatorMatrix(basisStates, operator)
-    for time in range(0, stop=timeMax, step=deltaTime)
+    @showprogress for time in range(0, stop=timeMax, step=deltaTime)
         push!(matrixElement, 0)
         for sector in keys(observeStateClassified)
             matrixElement[end] += real(observeStateClassified[sector]' * operatorMatrix[sector] * observeStateClassified[sector])
         end
-        # deltaOperator = operatorCommutator(basisStates, operatorMatrix, hamiltonianMatrix)
-        # for sector in keys(deltaOperator)
-        #     oldTrace = sum(diag(operatorMatrix[sector] ^ 2))
-        #     operatorMatrix[sector] += operatorMatrix[sector] -1im .* deltaOperator[sector] .* deltaTime
-        #     operatorMatrix[sector] .*= (oldTrace / sum(diag(operatorMatrix[sector] ^ 2))) ^ 0.5
-        # end
         for sector in keys(operatorMatrix)
             operatorMatrix[sector] = propagatorSectors[sector] * operatorMatrix[sector] * propagatorSectors[sector]'
         end
