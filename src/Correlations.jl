@@ -37,12 +37,13 @@ function ReducedDensityMatrix(
         state::Dict{BitVector,Float64}, 
         nonTracedIndices::Vector{Int64},
     )
+    totalSites = state |> keys |> first |> length
+    tracedIndices = filter(∉(nonTracedIndices), 1:totalSites)
     stateNorm = sum(values(state) .^ 2 )^0.5
     normalisedState = deepcopy(state)
     map!(v -> v / stateNorm, values(normalisedState))
     nonTracedBasis = BasisStates(length(nonTracedIndices))
     reducedDensityMatrix = zeros(length(nonTracedBasis), length(nonTracedBasis))
-    tracedIndices = [i for i in normalisedState |> keys |> first |> length if i ∉ nonTracedIndices]
     for (bstate1, val1) in normalisedState
         for (bstate2, val2) in normalisedState
             if bstate1[tracedIndices] == bstate2[tracedIndices]
@@ -54,5 +55,30 @@ function ReducedDensityMatrix(
             end
         end
     end
+    return reducedDensityMatrix
+end
+export ReducedDensityMatrix
+
+
+function ReducedDensityMatrixFast(
+        state::Dict{BitVector,Float64}, 
+        nonTracedIndices::Vector{Int64},
+    )
+    totalSites = state |> keys |> first |> length
+    tracedIndices = filter(∉(nonTracedIndices), 1:totalSites)
+    stateNorm = sum(values(state) .^ 2 )^0.5
+    normalisedState = deepcopy(state)
+    map!(v -> v / stateNorm, values(normalisedState))
+    nonTracedBasis = BasisStates(length(nonTracedIndices))
+    tracedBasis = BasisStates(length(tracedIndices))
+    stateTensor = zeros(length(nonTracedBasis), length(tracedBasis))
+    for (bstate, val) in normalisedState
+        nonTracedState = Dict(bstate[nonTracedIndices] => 1.)
+        tracedState = Dict(bstate[tracedIndices] => 1.)
+        stateTensor[findfirst(==(nonTracedState), nonTracedBasis), 
+                             findfirst(==(tracedState), tracedBasis),
+                            ] += val
+    end
+    reducedDensityMatrix = stateTensor * stateTensor'
     return reducedDensityMatrix
 end
