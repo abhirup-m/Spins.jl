@@ -1,19 +1,20 @@
-function getBasisStates(numSpins::Int64; magz=nothing)
-    basisStates = Dict{Float64,Vector{BitArray}}()
-    allSequences = digits.(0:2^numSpins-1, base=2, pad=numSpins) |> reverse
-    allSequencesTotSigmaz = sum.([sequence .- 0.5 for sequence in allSequences]) .* 2
-    if !isnothing(magz)
-        basisStates[magz] = allSequences[allSequencesTotSigmaz.==magz]
-    else
-        for sigmaz in -numSpins:2:numSpins
-            basisStates[sigmaz] = allSequences[allSequencesTotSigmaz.==sigmaz]
-        end
+function BasisStates(
+        numSpins::Int64
+    )
+    basis = Dict{BitVector,Float64}[]
+    for decimalNum in 0:2^numSpins-1
+        config = digits(decimalNum, base=2, pad=numSpins) |> reverse
+        push!(basis, Dict(BitVector(config) => 1.0))
     end
-    return basisStates
+    return basis
 end
+export BasisStates
 
 
-function TransformBit(qubit::Bool, operator::Char)
+function TransformBit(
+        qubit::Bool, 
+        operator::Char
+    )
     @assert operator in ('z', '+', '-')
     if operator == 'z'
         return qubit, 2 * (qubit - 0.5)
@@ -25,65 +26,110 @@ function TransformBit(qubit::Bool, operator::Char)
 end
 
 
-function applyOperatorOnState(stateDict::Dict{BitVector,Float64}, operatorList::Dict{Tuple{String,Vector{Int64}},Float64})
-    @assert maximum([maximum(opMembers) for (_, opMembers) in keys(operatorList)]) ≤ length(collect(keys(stateDict))[1])
+function ApplyOperatorChunk(
+        opType::String,
+        opMembers::Vector{Int64},
+        opStrength::Float64,
+        incomingState::Dict{BitVector,Float64};
+        tolerance::Float64=1e-16
+    )
+    outgoingState = Dict{BitVector,Float64}()
+    for i in eachindex(opMembers)[end:-1:2]
+        if opMembers[i] ∈ opMembers[i+1:end]
+            continue
+        end
+        if opType[i] == '+'
+            filter!(p -> p[1][opMembers[i]] == 0, incomingState)
+        elseif opType[i] == '-'
+            filter!(p -> p[1][opMembers[i]] == 1, incomingState)
+        end
+    end
+    for (incomingBasisState, coefficient) in incomingState
 
-    # define a dictionary for the final state obtained after applying 
-    # the operators on all basis states
-    completeOutputState = Dict{BitVector,Float64}()
+        newCoefficient = coefficient
+        outgoingBasisState = copy(incomingBasisState)
 
-    # loop over all operator tuples within operatorList
-    for ((opType, opMembers), opStrength) in pairs(operatorList)
-        @assert length(opMembers) == length(opType) == length(unique(opMembers))
-
-        for (state, coefficient) in stateDict
-
-            newState = copy(state)
-            newCoefficient = coefficient
-            for (operator, spinIndex) in zip(opType, opMembers)
-                newQubit, factor = TransformBit(state[spinIndex], operator)
-                newState[spinIndex] = newQubit
-                newCoefficient *= factor
-                if newCoefficient == 0
-                    break
-                end
+        # for each basis state, obtain a modified state after applying the operator tuple
+        for (siteIndex, operator) in zip(reverse(opMembers), reverse(opType))
+            newQubit, factor = TransformBit(outgoingBasisState[siteIndex], operator)
+            if factor == 0
+                newCoefficient = 0
+                break
             end
+            outgoingBasisState[siteIndex] = newQubit
+            newCoefficient *= factor
+        end
 
-            if newState in keys(completeOutputState)
-                completeOutputState[newState] += opStrength * newCoefficient
+        if abs(newCoefficient) > tolerance
+            if haskey(outgoingState, outgoingBasisState)
+                outgoingState[outgoingBasisState] += opStrength * newCoefficient
             else
-                completeOutputState[newState] = opStrength * newCoefficient
+                outgoingState[outgoingBasisState] = opStrength * newCoefficient
             end
         end
     end
-    return completeOutputState
+    return outgoingState
 end
+export ApplyOperatorChunk
 
 
-function generalOperatorMatrix(basisStates::Dict{Float64,Vector{BitArray}}, operatorList::Dict{Tuple{String,Vector{Int64}},Float64})
-    operatorFullMatrix = Dict(key => zeros(length(value), length(value)) .+ 0im for (key, value) in basisStates)
+function ApplyOperator(
+        operator::Vector{Tuple{String,Vector{Int64},Float64}},
+        incomingState::Dict{BitVector,Float64};
+        tolerance::Float64=1e-16
+    )
+    @assert !isempty(operator)
+    @assert maximum([maximum(positions) for (_, positions, _) in operator]) ≤ length.(keys(incomingState))[1]
 
-    # loop over each symmetry sector
-    for (key, bstates) in collect(basisStates)
+    return mergewith(+, fetch.([Threads.@spawn ApplyOperatorChunk(opType, opMembers, opStrength, copy(incomingState); tolerance=tolerance) 
+                                for (opType, opMembers, opStrength) in operator])...)
 
-        # loop over the basis states in the current symmetry sector
-        for (index, state) in collect(enumerate(bstates))
+    return outgoingState
+end
+export ApplyOperator
 
-            # loop over the new states generated upon applying
-            # the operator to the current basis state
-            for (nState, coeff) in applyOperatorOnState(Dict(state => 1.0), operatorList)
-                operatorFullMatrix[key][bstates.==[nState], index] .= coeff
-            end
+
+function OperatorMatrix(
+        basisStates::Vector{Dict{BitVector,Float64}},
+        operator::Vector{Tuple{String,Vector{Int64},Float64}};
+        tolerance::Float64=1e-16,
+    )
+    operatorMatrix = zeros(length(basisStates), length(basisStates))
+    newStates = fetch.([Threads.@spawn ApplyOperator(operator, incomingState; tolerance=tolerance)
+                        for incomingState in basisStates])
+    Threads.@threads for incomingIndex in findall(!isempty, newStates)
+        Threads.@threads for outgoingIndex in eachindex(basisStates)
+            operatorMatrix[outgoingIndex, incomingIndex] = StateOverlap(basisStates[outgoingIndex], newStates[incomingIndex])
         end
     end
-    return operatorFullMatrix
+    return operatorMatrix
 end
+export OperatorMatrix
 
 
-function operatorCommutator(basisStates::Dict{Float64,Vector{BitArray}}, matrixLeft::Dict{Float64,Matrix{ComplexF64}}, matrixRight::Dict{Float64,Matrix{ComplexF64}})
-    commutator = Dict(key => Matrix{ComplexF64}(undef, (length(states), length(states))) for (key, states) in basisStates)
-    for sector in keys(basisStates)
-        commutator[sector] = matrixLeft[sector] * matrixRight[sector] - matrixRight[sector] * matrixLeft[sector]
+function Commutator(
+        basisStates::Vector{Dict{BitVector,Float64}},
+        operatorLeft::Vector{Tuple{String,Vector{Int64},Float64}},
+        operatorRight::Vector{Tuple{String,Vector{Int64},Float64}},
+    )
+    matrixLeft = OperatorMatrix(basisStates, operatorLeft)
+    matrixRight = OperatorMatrix(basisStates, operatorRight)
+    return matrixLeft * matrixRight - matrixRight * matrixLeft
+end
+export Commutator
+
+
+function StateOverlap(
+        stateBra::Dict{BitVector,Float64}, 
+        stateKet::Dict{BitVector,Float64}
+    )
+    overlap = 0.
+    keys2 = keys(stateBra)
+    for (key, val) in stateKet
+        if key ∈ keys2
+            overlap += val * stateBra[key]'
+        end
     end
-    return commutator
+    return overlap
 end
+export StateOverlap
