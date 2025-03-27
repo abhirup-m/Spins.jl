@@ -24,6 +24,7 @@ function TransformBit(
         return qubit, 0
     end
 end
+export TransformBit
 
 
 function ApplyOperatorChunk(
