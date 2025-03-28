@@ -4,11 +4,16 @@ function Spectrum(
         hamiltonian::Vector{Tuple{String,Vector{Int64},Float64}},
         basisStates::Vector{Dict{BitVector,Float64}};
         symmetries::String="",
+        tolerance::Float64=1e-10,
     )
     if isempty(symmetries)
         hamiltonianMatrix = OperatorMatrix(basisStates, hamiltonian)
         eigenValues, X = eigen(Hermitian(hamiltonianMatrix))
-        eigenStates = [Xi for Xi in eachcol(X)]
+        eigenStates = eltype(basisStates)[] 
+        for eigenState in eachcol(X)
+            eigenState = mergewith(+, [Dict(k => v * cj for (k,v) in basisStates[j]) for (j, cj) in enumerate(eigenState) if abs(cj) > tolerance]...)
+            push!(eigenStates, eigenState)
+        end
     elseif symmetries == "Z"
         numSpins = basisStates[1] |> keys |> collect |> first |> length
         totSzValues = range(-numSpins, numSpins, step=2) |> collect

@@ -82,3 +82,13 @@ function ReducedDensityMatrixFast(
     reducedDensityMatrix = stateTensor * stateTensor'
     return reducedDensityMatrix
 end
+
+
+function EntEntropy(
+        reducedDensityMatrix::Matrix{Float64},
+    )
+    reducedDensityMatrix ./= tr(reducedDensityMatrix)
+    eigvals, _ = eigen(Hermitian(reducedDensityMatrix))
+    filter!(>(0), eigvals)
+    return -sum(eigvals .* log.(eigvals))
+end

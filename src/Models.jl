@@ -17,12 +17,47 @@ end
 
 function LiebMattis(
         numSpinsHalf::Int64;
+        globalField::Float64=0.,
+    )
+    hamiltonian = tuple{string, vector{int64}, float64}[]
+    for i in 1:2:2*numspinshalf
+        for j in 2:2:2*numspinshalf
+            append!(hamiltonian, [("zz", [i, j], 0.25), ("zz", [j, i], 0.25)])
+            append!(hamiltonian, [("+-", [i, j], 0.5), ("+-", [j, i], 0.5)])
+        end
+    end
+    if globalField ≠ 0
+        for i in 1:2*numSpinsHalf
+            append!(hamiltonian, [("z", [i], globalField/2)])
+        end
+    end
+    return hamiltonian
+end
+
+
+function LiebMattis(
+        numSpinsHalf::Int64,
+        intraCoupling::Float64;
+        globalField::Float64=0.,
     )
     hamiltonian = Tuple{String, Vector{Int64}, Float64}[]
     for i in 1:2:2*numSpinsHalf
         for j in 2:2:2*numSpinsHalf
             append!(hamiltonian, [("zz", [i, j], 0.25), ("zz", [j, i], 0.25)])
             append!(hamiltonian, [("+-", [i, j], 0.5), ("+-", [j, i], 0.5)])
+        end
+    end
+    for i in 1:2:2*numSpinsHalf
+        for j in 1:2:2*numSpinsHalf
+            append!(hamiltonian, [("zz", [i, j], 0.25 * intraCoupling), ("zz", [j, i], 0.25 * intraCoupling)])
+            append!(hamiltonian, [("+-", [i, j], 0.5 * intraCoupling), ("+-", [j, i], 0.5 * intraCoupling)])
+            append!(hamiltonian, [("zz", [i + 1, j + 1], 0.25 * intraCoupling), ("zz", [j + 1, i + 1], 0.25 * intraCoupling)])
+            append!(hamiltonian, [("+-", [i + 1, j + 1], 0.5 * intraCoupling), ("+-", [j + 1, i + 1], 0.5 * intraCoupling)])
+        end
+    end
+    if globalField ≠ 0
+        for i in 1:2*numSpinsHalf
+            append!(hamiltonian, [("z", [i], globalField/2)])
         end
     end
     return hamiltonian
