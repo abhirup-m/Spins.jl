@@ -20,9 +20,9 @@ function LiebMattis(
         globalField::Float64=0.,
     )
     hamiltonian = tuple{string, vector{int64}, float64}[]
-    for i in 1:2:2*numspinshalf
-        for j in 2:2:2*numspinshalf
-            append!(hamiltonian, [("zz", [i, j], 0.25), ("zz", [j, i], 0.25)])
+    for i in 1:numSpinsHalf
+        for j in numSpinsHalf+1:2*numSpinsHalf
+            append!(hamiltonian, [("zz", [i, j], 0.25)])
             append!(hamiltonian, [("+-", [i, j], 0.5), ("+-", [j, i], 0.5)])
         end
     end
@@ -41,18 +41,18 @@ function LiebMattis(
         globalField::Float64=0.,
     )
     hamiltonian = Tuple{String, Vector{Int64}, Float64}[]
-    for i in 1:2:2*numSpinsHalf
-        for j in 2:2:2*numSpinsHalf
-            append!(hamiltonian, [("zz", [i, j], 0.25), ("zz", [j, i], 0.25)])
+    for i in 1:numSpinsHalf
+        for j in numSpinsHalf+1:2*numSpinsHalf
+            append!(hamiltonian, [("zz", [i, j], 0.25)])
             append!(hamiltonian, [("+-", [i, j], 0.5), ("+-", [j, i], 0.5)])
         end
     end
-    for i in 1:2:2*numSpinsHalf
-        for j in 1:2:2*numSpinsHalf
-            append!(hamiltonian, [("zz", [i, j], 0.25 * intraCoupling), ("zz", [j, i], 0.25 * intraCoupling)])
+    for i in 1:numSpinsHalf
+        for j in 1:numSpinsHalf
+            append!(hamiltonian, [("zz", [i, j], 0.25 * intraCoupling)])
             append!(hamiltonian, [("+-", [i, j], 0.5 * intraCoupling), ("+-", [j, i], 0.5 * intraCoupling)])
-            append!(hamiltonian, [("zz", [i + 1, j + 1], 0.25 * intraCoupling), ("zz", [j + 1, i + 1], 0.25 * intraCoupling)])
-            append!(hamiltonian, [("+-", [i + 1, j + 1], 0.5 * intraCoupling), ("+-", [j + 1, i + 1], 0.5 * intraCoupling)])
+            append!(hamiltonian, [("zz", [i + numSpinsHalf, j + numSpinsHalf], 0.25 * intraCoupling)])
+            append!(hamiltonian, [("+-", [i + numSpinsHalf, j + numSpinsHalf], 0.5 * intraCoupling), ("+-", [j + numSpinsHalf, i + numSpinsHalf], 0.5 * intraCoupling)])
         end
     end
     if globalField ≠ 0
