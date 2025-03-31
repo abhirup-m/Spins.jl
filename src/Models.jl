@@ -28,6 +28,33 @@ function Heisenberg(
 end
 
 
+function SpinSquaredModel(
+        numSpins::Int64;
+        coupling::Number=1,
+        globalField::Number=0,
+        indices::Vector{Int64}=Int64[],
+    )
+    if isempty(indices)
+        indices = 1:numSpins
+    end
+    @assert length(indices) == numSpins
+
+    hamiltonian = Tuple{String, Vector{Int64}, Float64}[]
+    for (i,j) in Iterators.product(indices, indices)
+        append!(hamiltonian, [("zz", [i, j], coupling * 0.25)])
+        append!(hamiltonian, [("+-", [i, j], coupling * 0.5), 
+                              ("+-", [j, i], coupling * 0.5)
+                             ])
+    end
+    if globalField ≠ 0
+        for i in indices
+            append!(hamiltonian, [("z", [i], globalField/2)])
+        end
+    end
+    return hamiltonian
+end
+
+
 """
     LiebMattis(numSpinsHalf; globalField=0.)
 
@@ -43,25 +70,9 @@ function LiebMattis(
         totSpinSqCoupling::Number,
         globalField::Number=0.,
     )
-    hamiltonian = Tuple{String, Vector{Int64}, Float64}[]
-    for i in 1:2*numSpinsHalf
-        for j in 1:2*numSpinsHalf
-            if i ≤ numSpinsHalf && j ≥ numSpinsHalf + 1
-                append!(hamiltonian, [("zz", [i, j], (1 - totSpinSqCoupling ) * 0.25)])
-                append!(hamiltonian, [("+-", [i, j], (1 - totSpinSqCoupling ) * 0.5), 
-                                      ("+-", [j, i], (1 - totSpinSqCoupling ) * 0.5)
-                                     ])
-            end
-            if totSpinSqCoupling ≠ 0
-                append!(hamiltonian, [("zz", [i, j], 0.5 * totSpinSqCoupling * 0.25)])
-                append!(hamiltonian, [("+-", [i, j], 0.5 * totSpinSqCoupling * 0.5), 
-                                      ("+-", [j, i], 0.5 * totSpinSqCoupling * 0.5)
-                                     ])
-            end
-        end
-        if globalField ≠ 0
-            append!(hamiltonian, [("z", [i], globalField/2)])
-        end
-    end
+    hamiltonian_A = SpinSquaredModel(numSpinsHalf; coupling=totSpinSqCoupling-1)
+    hamiltonian_B = SpinSquaredModel(numSpinsHalf; coupling=totSpinSqCoupling-1, indices=(numSpinsHalf+1):2*numSpinsHalf |> collect)
+    hamiltonian_tot = SpinSquaredModel(2 * numSpinsHalf; globalField=globalField)
+    hamiltonian = [hamiltonian_A; hamiltonian_B; hamiltonian_tot]
     return hamiltonian
 end
